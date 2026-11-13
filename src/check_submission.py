@@ -104,7 +104,7 @@ def fmt_segments(segs: list[tuple[int, int]]) -> str:
 # MOT 1.1
 # ---------------------------------------------------------------------------
 
-def check_mot(path: Path, expected: int, rep: Report) -> None:
+def check_mot(path: Path, expected: int | None, rep: Report) -> None:
     print(f"\n=== File MOT 1.1: {path.name} ===")
     if zip_has_images(path):
         rep.error("Zip có kèm ảnh. Xuất lại và bỏ chọn 'Save images' (không được nộp ảnh MOT17).")
@@ -147,7 +147,9 @@ def check_mot(path: Path, expected: int, rep: Report) -> None:
     n = len(boxes)
     total = sum(len(v) for v in boxes.values())
     print(f"  Số track ID: {n}   |   Tổng số box: {total}")
-    if n == expected:
+    if expected is None:
+        rep.info(f"Có {n} track ID; không áp giới hạn số track theo xác nhận của mentor.")
+    elif n == expected:
         rep.ok(f"Đúng {expected} track ID.")
     elif n > expected:
         rep.error(
@@ -293,11 +295,15 @@ def main() -> int:
     ap =argparse.ArgumentParser(description="Tự kiểm file xuất Lab Ngày 5 (MOT 1.1, CVAT for video 1.1).")
     ap.add_argument("--mot", type=Path, help="File MOT 1.1 (.zip) hoặc gt.txt")
     ap.add_argument("--cvat", type=Path, help="File CVAT for video 1.1 (.zip) hoặc annotations.xml")
-    ap.add_argument("--expected", type=int, default=5, help="Số track mong đợi (mặc định 5; làm bonus B1 thì 7)")
+    count_options = ap.add_mutually_exclusive_group()
+    count_options.add_argument("--expected", type=int, default=5, help="Số track mong đợi (mặc định 5; làm bonus B1 thì 7)")
+    count_options.add_argument("--allow-any-track-count", action="store_true", help="Không giới hạn số track khi mentor đã cho phép; vẫn kiểm tra các lỗi khác")
     args = ap.parse_args()
 
     if not args.mot and not args.cvat:
         ap.error("Cần ít nhất --mot hoặc --cvat.")
+    if args.expected <= 0:
+        ap.error("--expected phải lớn hơn 0.")
 
     rep = Report()
     print("Số frame in theo CVAT (bắt đầu từ 0). Trong gt.txt, frame_id = frame CVAT + 1.")
@@ -306,7 +312,7 @@ def main() -> int:
             print(f"[LỖI] Không thấy file {p}")
             return 1
     if args.mot:
-        check_mot(args.mot, args.expected, rep)
+        check_mot(args.mot, None if args.allow_any_track_count else args.expected, rep)
     if args.cvat:
         check_cvat(args.cvat, rep)
 
